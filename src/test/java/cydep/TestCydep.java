@@ -15,8 +15,8 @@ public class TestCydep {
     public void testDPR() throws IOException, URISyntaxException {
         String dpr = TestCydep.class.getClassLoader().getResource(NAME + ".nids").toString();
         File dir = new File(new URI(dpr)).getParentFile();
-        final File file = new File(dir, NAME + ".kml");
+        final File file = new File(dir, NAME + ".png");
         final FileOutputStream out = new FileOutputStream(file);
-        Cydep.drawToKml(dpr, out);
+        Cydep.drawToPng(dpr, out);
     }
 }
