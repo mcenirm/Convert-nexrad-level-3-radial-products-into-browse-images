@@ -7,8 +7,10 @@ import com.vividsolutions.jts.geom.Polygon;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.geom.GeneralPath;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Formatter;
@@ -26,6 +28,7 @@ import org.geotools.referencing.GeodeticCalculator;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.renderer.GTRenderer;
 import org.geotools.renderer.lite.StreamingRenderer;
+import org.geotools.resources.geometry.ShapeUtilities;
 import org.geotools.styling.PolygonSymbolizer;
 import org.geotools.styling.StyleBuilder;
 import org.opengis.feature.simple.SimpleFeature;
@@ -80,6 +83,31 @@ public class Cydep {
         this.netcdfDataset = NetcdfDataset.wrap(getRadialDatasetSweep().getNetcdfFile(), NetcdfDataset.getEnhanceAll());
     }
 
+    private Variable findDataVariable() {
+        List<String> dataVariableNames = new LinkedList<String>();
+        List<VariableSimpleIF> dataVariables = getRadialDatasetSweep().getDataVariables();
+        for (VariableSimpleIF variableSimpleIF : dataVariables) {
+            dataVariableNames.add(variableSimpleIF.getFullName());
+        }
+        Variable dataVariable = null;
+        for (String dataVariableName : dataVariableNames) {
+            Variable variable = getNetcdfDataset().findVariable(dataVariableName);
+            if (variable != null) {
+                dataVariable = variable;
+                break;
+            }
+        }
+        return dataVariable;
+    }
+
+    private CoordinateAxis1D findAzimuthAxis() {
+        return ((CoordinateAxis1D) getNetcdfDataset().findCoordinateAxis(AxisType.RadialAzimuth));
+    }
+
+    private CoordinateAxis1D findDistanceAxis() {
+        return (CoordinateAxis1D) getNetcdfDataset().findCoordinateAxis(AxisType.RadialDistance);
+    }
+
     public static void drawToPng(String inputPathname, OutputStream out) throws IOException {
         GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
         GeodeticCalculator calc = new GeodeticCalculator(DefaultGeographicCRS.WGS84);
@@ -88,27 +116,15 @@ public class Cydep {
         RadialDatasetSweep ncRadial = cydep.getRadialDatasetSweep();
         EarthLocation commonOrigin = ncRadial.getCommonOrigin();
         calc.setStartingGeographicPoint(commonOrigin.getLongitude(), commonOrigin.getLatitude());
-        List<String> dataVariableNames = new LinkedList<String>();
-        List<VariableSimpleIF> dataVariables = ncRadial.getDataVariables();
-        for (VariableSimpleIF variableSimpleIF : dataVariables) {
-            dataVariableNames.add(variableSimpleIF.getFullName());
-        }
         NetcdfDataset ncDataset = cydep.getNetcdfDataset();
-        Variable dataVariable = null;
-        for (String dataVariableName : dataVariableNames) {
-            Variable variable = ncDataset.findVariable(dataVariableName);
-            if (variable != null) {
-                dataVariable = variable;
-                break;
-            }
-        }
+        Variable dataVariable = cydep.findDataVariable();
         DefaultFeatureCollection collection = new DefaultFeatureCollection();
         if (dataVariable != null) {
-            CoordinateAxis1D azimuthAxis = (CoordinateAxis1D) ncDataset.findCoordinateAxis(AxisType.RadialAzimuth);
+            CoordinateAxis1D azimuthAxis = cydep.findAzimuthAxis();
             String azimuthName = azimuthAxis.getShortName();
             double[] azimuthBound1 = azimuthAxis.getBound1();
             double[] azimuthBound2 = azimuthAxis.getBound2();
-            CoordinateAxis1D distanceAxis = (CoordinateAxis1D) ncDataset.findCoordinateAxis(AxisType.RadialDistance);
+            CoordinateAxis1D distanceAxis = cydep.findDistanceAxis();
             String distanceName = distanceAxis.getShortName();
             double[] distanceBound1 = distanceAxis.getBound1();
             double[] distanceBound2 = distanceAxis.getBound2();
@@ -201,5 +217,83 @@ public class Cydep {
 
     public static void show(String label, Object object) {
         Util.dump(label, object, err, true);
+    }
+
+    void drawToMeteredImage(File imageFile, String imageFormat) throws IOException {
+        float lat_min = findFloatGlobalAttribute("geospatial_lat_min");
+        float lat_max = findFloatGlobalAttribute("geospatial_lat_max");
+        float lon_min = findFloatGlobalAttribute("geospatial_lon_min");
+        float lon_max = findFloatGlobalAttribute("geospatial_lon_max");
+        float lat_height = lat_max - lat_min;
+        float lon_width = lon_max - lon_min;
+        CoordinateAxis1D azimuthAxis = findAzimuthAxis();
+        CoordinateAxis1D distanceAxis = findDistanceAxis();
+        double[] azimuthFroms = azimuthAxis.getBound1();
+        double[] azimuthTos = azimuthAxis.getBound2();
+        double[] distanceFroms = distanceAxis.getBound1();
+        double[] distanceTos = distanceAxis.getBound2();
+        int width = 2500;
+        int height = width;
+        double distanceScale = width / distanceTos[distanceTos.length - 1] / 2;
+        int imageType = BufferedImage.TYPE_4BYTE_ABGR;
+        BufferedImage image = new BufferedImage(width, height, imageType);
+        Graphics2D g = image.createGraphics();
+        g.setBackground(new Color(0, 0, 0, 0));
+        g.clearRect(0, 0, width, height);
+        g.setPaint(Color.GREEN);
+        g.drawOval(0, 0, width, height);
+        g.translate(width / 2, height / 2);
+        float data_min = findFloatGlobalAttribute("data_min");
+        float data_max = findFloatGlobalAttribute("data_max");
+        Color[] colors = new Color[10];
+        for (int i = 0; i < colors.length; i++) {
+            Color color = Color.getHSBColor(0.9f * i * colors.length, 0.5f, 1.0f);
+            colors[i] = color;
+        }
+        Variable dataVariable = findDataVariable();
+        Array data = dataVariable.read();
+        Index index = data.getIndex();
+        for (int iAzimuth = 0; iAzimuth < azimuthFroms.length; iAzimuth++) {
+            double azimuthFrom = azimuthFroms[iAzimuth];
+            double azimuthTo = azimuthTos[iAzimuth];
+            double radiansFrom = degreesToRadians(azimuthFrom);
+            double radiansTo = degreesToRadians(azimuthTo);
+            double sinFrom = Math.sin(radiansFrom);
+            double sinTo = Math.sin(radiansTo);
+            double cosFrom = Math.cos(radiansFrom);
+            double cosTo = Math.cos(radiansTo);
+            for (int iDistance = 0; iDistance < distanceFroms.length; iDistance++) {
+                float value = data.getFloat(index.set(iAzimuth, iDistance));
+                if (!Float.isNaN(value)) {
+                    double distanceFrom = distanceFroms[iDistance] * distanceScale;
+                    double distanceTo = distanceTos[iDistance] * distanceScale;
+                    GeneralPath path = new GeneralPath();
+                    double x1 = distanceFrom * sinFrom;
+                    double y1 = distanceFrom * cosFrom;
+                    double x2 = distanceTo * sinFrom;
+                    double y2 = distanceTo * cosFrom;
+                    double x3 = distanceTo * sinTo;
+                    double y3 = distanceTo * cosTo;
+                    double x4 = distanceFrom * sinTo;
+                    double y4 = distanceFrom * cosTo;
+                    path.moveTo(x1, y1);
+                    path.lineTo(x2, y2);
+                    path.lineTo(x3, y3);
+                    path.lineTo(x4, y4);
+                    path.lineTo(x1, y1);
+                    g.setPaint(colors[(int) (colors.length * (value - data_min) / (data_max - data_min))]);
+                    g.fill(path);
+                }
+            }
+        }
+        ImageIO.write(image, imageFormat, imageFile);
+    }
+
+    public static double degreesToRadians(double degrees) {
+        return degrees * Math.PI / 180.0;
+    }
+
+    private float findFloatGlobalAttribute(final String attributeName) {
+        return getNetcdfDataset().findGlobalAttribute(attributeName).getNumericValue().floatValue();
     }
 }
