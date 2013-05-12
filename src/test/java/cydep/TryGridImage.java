@@ -1,23 +1,27 @@
 package cydep;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Formatter;
+import javax.imageio.ImageIO;
 import org.junit.Test;
+import ucar.nc2.NetcdfFileWriter;
 
-public class TryMeteredImage {
+public class TryGridImage {
 
     @Test
-    public void tryMeteredImage() throws IOException {
+    public void tryGridNC() throws IOException {
         final String name = "Level3_KDVN_DPR_20130418_0408";
-        final String imageFormat = "png";
         final String pathname = Resources.getFileResourceAsPathname(name + ".nids");
         PrintStream out = System.out;
         Formatter f = new Formatter(out);
         Cydep cydep = new Cydep(pathname, f);
         File outDir = new File(cydep.getPathname()).getParentFile();
-        File imageFile = new File(outDir, name + "." + imageFormat);
-        cydep.drawToMeteredImage(imageFile, imageFormat);
+        String imageFormat = "png";
+        File gridFile = new File(outDir, name + "." + imageFormat);
+        BufferedImage image = cydep.drawToGrid(imageFormat);
+        ImageIO.write(image, imageFormat, gridFile);
     }
 }

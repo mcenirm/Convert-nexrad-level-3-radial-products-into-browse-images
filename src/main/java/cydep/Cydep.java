@@ -10,9 +10,11 @@ import java.awt.Rectangle;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Formatter;
 import java.util.LinkedList;
 import java.util.List;
@@ -28,7 +30,6 @@ import org.geotools.referencing.GeodeticCalculator;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.renderer.GTRenderer;
 import org.geotools.renderer.lite.StreamingRenderer;
-import org.geotools.resources.geometry.ShapeUtilities;
 import org.geotools.styling.PolygonSymbolizer;
 import org.geotools.styling.StyleBuilder;
 import org.opengis.feature.simple.SimpleFeature;
@@ -36,6 +37,8 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import ucar.ma2.Array;
 import ucar.ma2.Index;
 import ucar.nc2.Attribute;
+import ucar.nc2.Dimension;
+import ucar.nc2.NetcdfFileWriter;
 import ucar.nc2.Variable;
 import ucar.nc2.VariableSimpleIF;
 import ucar.nc2.constants.AxisType;
@@ -51,6 +54,9 @@ public class Cydep {
     private String pathname;
     private RadialDatasetSweep radialDatasetSweep;
     private NetcdfDataset netcdfDataset;
+    private Variable dataVariable;
+    private CoordinateAxis1D azimuthAxis;
+    private CoordinateAxis1D distanceAxis;
 
     /**
      * @return the pathname
@@ -73,58 +79,55 @@ public class Cydep {
         return netcdfDataset;
     }
 
-    public Cydep(String pathname) {
+    public Cydep(String pathname, Formatter errlog) throws IOException {
         this.pathname = pathname;
-    }
-
-    public void init(Formatter err) throws IOException {
-        this.radialDatasetSweep = (RadialDatasetSweep) FeatureDatasetFactoryManager.open(FeatureType.RADIAL, getPathname(), null, err);
-        getRadialDatasetSweep().calcBounds();
-        this.netcdfDataset = NetcdfDataset.wrap(getRadialDatasetSweep().getNetcdfFile(), NetcdfDataset.getEnhanceAll());
-    }
-
-    private Variable findDataVariable() {
+        this.radialDatasetSweep = (RadialDatasetSweep) FeatureDatasetFactoryManager.open(FeatureType.RADIAL, this.pathname, null, errlog);
+        this.radialDatasetSweep.calcBounds();
+        this.netcdfDataset = NetcdfDataset.wrap(this.radialDatasetSweep.getNetcdfFile(), NetcdfDataset.getEnhanceAll());
         List<String> dataVariableNames = new LinkedList<String>();
         List<VariableSimpleIF> dataVariables = getRadialDatasetSweep().getDataVariables();
         for (VariableSimpleIF variableSimpleIF : dataVariables) {
             dataVariableNames.add(variableSimpleIF.getFullName());
         }
-        Variable dataVariable = null;
         for (String dataVariableName : dataVariableNames) {
             Variable variable = getNetcdfDataset().findVariable(dataVariableName);
             if (variable != null) {
-                dataVariable = variable;
+                this.dataVariable = variable;
                 break;
             }
         }
+        azimuthAxis = (CoordinateAxis1D) getNetcdfDataset().findCoordinateAxis(AxisType.RadialAzimuth);
+        distanceAxis = (CoordinateAxis1D) getNetcdfDataset().findCoordinateAxis(AxisType.RadialDistance);
+    }
+
+    public Variable getDataVariable() {
         return dataVariable;
     }
 
-    private CoordinateAxis1D findAzimuthAxis() {
-        return ((CoordinateAxis1D) getNetcdfDataset().findCoordinateAxis(AxisType.RadialAzimuth));
+    public CoordinateAxis1D getAzimuthAxis() {
+        return azimuthAxis;
     }
 
-    private CoordinateAxis1D findDistanceAxis() {
-        return (CoordinateAxis1D) getNetcdfDataset().findCoordinateAxis(AxisType.RadialDistance);
+    public CoordinateAxis1D getDistanceAxis() {
+        return distanceAxis;
     }
 
     public static void drawToPng(String inputPathname, OutputStream out) throws IOException {
         GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
         GeodeticCalculator calc = new GeodeticCalculator(DefaultGeographicCRS.WGS84);
-        Cydep cydep = new Cydep(inputPathname);
-        cydep.init(err);
+        Cydep cydep = new Cydep(inputPathname, err);
         RadialDatasetSweep ncRadial = cydep.getRadialDatasetSweep();
         EarthLocation commonOrigin = ncRadial.getCommonOrigin();
         calc.setStartingGeographicPoint(commonOrigin.getLongitude(), commonOrigin.getLatitude());
         NetcdfDataset ncDataset = cydep.getNetcdfDataset();
-        Variable dataVariable = cydep.findDataVariable();
+        Variable dataVariable = cydep.getDataVariable();
         DefaultFeatureCollection collection = new DefaultFeatureCollection();
         if (dataVariable != null) {
-            CoordinateAxis1D azimuthAxis = cydep.findAzimuthAxis();
+            CoordinateAxis1D azimuthAxis = cydep.getAzimuthAxis();
             String azimuthName = azimuthAxis.getShortName();
             double[] azimuthBound1 = azimuthAxis.getBound1();
             double[] azimuthBound2 = azimuthAxis.getBound2();
-            CoordinateAxis1D distanceAxis = cydep.findDistanceAxis();
+            CoordinateAxis1D distanceAxis = cydep.getDistanceAxis();
             String distanceName = distanceAxis.getShortName();
             double[] distanceBound1 = distanceAxis.getBound1();
             double[] distanceBound2 = distanceAxis.getBound2();
@@ -226,8 +229,6 @@ public class Cydep {
         float lon_max = findFloatGlobalAttribute("geospatial_lon_max");
         float lat_height = lat_max - lat_min;
         float lon_width = lon_max - lon_min;
-        CoordinateAxis1D azimuthAxis = findAzimuthAxis();
-        CoordinateAxis1D distanceAxis = findDistanceAxis();
         double[] azimuthFroms = azimuthAxis.getBound1();
         double[] azimuthTos = azimuthAxis.getBound2();
         double[] distanceFroms = distanceAxis.getBound1();
@@ -245,13 +246,35 @@ public class Cydep {
         g.translate(width / 2, height / 2);
         float data_min = findFloatGlobalAttribute("data_min");
         float data_max = findFloatGlobalAttribute("data_max");
+        err.format("# data min: %s\n", data_min);
+        err.format("# data max: %s\n", data_max);
         Color[] colors = new Color[10];
         for (int i = 0; i < colors.length; i++) {
             Color color = Color.getHSBColor(0.9f * i * colors.length, 0.5f, 1.0f);
             colors[i] = color;
         }
-        Variable dataVariable = findDataVariable();
         Array data = dataVariable.read();
+        float[] sortme = (float[]) data.copyTo1DJavaArray();
+        Arrays.sort(sortme);
+        int lastGoodValueIndex = sortme.length;
+        while (lastGoodValueIndex > 1) {
+            lastGoodValueIndex--;
+            if (!Float.isNaN(sortme[lastGoodValueIndex])) {
+                break;
+            }
+        }
+        float value_max = sortme[lastGoodValueIndex];
+        Float zero = Float.valueOf(0.0f);
+        int firstGoodValueIndex = 0;
+        while (firstGoodValueIndex < sortme.length) {
+            if (zero.compareTo(sortme[firstGoodValueIndex]) < 0) {
+                break;
+            }
+            firstGoodValueIndex++;
+        }
+        float value_min = sortme[(int) (firstGoodValueIndex + 0.1 * (lastGoodValueIndex - firstGoodValueIndex))];
+        err.format("# value min: %s\n", value_min);
+        err.format("# value max: %s\n", value_max);
         Index index = data.getIndex();
         for (int iAzimuth = 0; iAzimuth < azimuthFroms.length; iAzimuth++) {
             double azimuthFrom = azimuthFroms[iAzimuth];
@@ -264,7 +287,7 @@ public class Cydep {
             double cosTo = Math.cos(radiansTo);
             for (int iDistance = 0; iDistance < distanceFroms.length; iDistance++) {
                 float value = data.getFloat(index.set(iAzimuth, iDistance));
-                if (!Float.isNaN(value)) {
+                if (!Float.isNaN(value) && value > value_min) {
                     double distanceFrom = distanceFroms[iDistance] * distanceScale;
                     double distanceTo = distanceTos[iDistance] * distanceScale;
                     GeneralPath path = new GeneralPath();
@@ -281,7 +304,8 @@ public class Cydep {
                     path.lineTo(x3, y3);
                     path.lineTo(x4, y4);
                     path.lineTo(x1, y1);
-                    g.setPaint(colors[(int) (colors.length * (value - data_min) / (data_max - data_min))]);
+                    final int colorIndex = (int) ((colors.length - 1) * (value - value_min) / (value_max - value_min));
+                    g.setPaint(colors[colorIndex]);
                     g.fill(path);
                 }
             }
@@ -295,5 +319,133 @@ public class Cydep {
 
     private float findFloatGlobalAttribute(final String attributeName) {
         return getNetcdfDataset().findGlobalAttribute(attributeName).getNumericValue().floatValue();
+    }
+
+    public void drawToGrid(NetcdfFileWriter writer) throws IOException {
+        double[] distanceValues = distanceAxis.getCoordValues();
+        int length = 2 * distanceValues.length;
+        Dimension geoX = writer.addDimension(null, AxisType.GeoX.getCFAxisName(), length);
+        Dimension geoY = writer.addDimension(null, AxisType.GeoY.getCFAxisName(), length);
+        List<Dimension> dimensions = new LinkedList<Dimension>();
+        dimensions.add(geoX);
+        dimensions.add(geoY);
+        Variable geoXVar = writer.addVariable(null, geoX.getShortName(), distanceAxis.getDataType(), geoX.getShortName());
+
+        Variable gridVariable = writer.addVariable(null, dataVariable.getShortName(), dataVariable.getDataType(), dimensions);
+        writer.create();
+    }
+
+    BufferedImage drawToGrid(String imageFormat) {
+        double[] distanceValues = distanceAxis.getCoordValues();
+        int length = 2 * distanceValues.length;
+        return null;
+    }
+
+    BufferedImage drawUnmapped() throws IOException {
+        int bits = 8;
+        int size = 16;
+        byte[] r = new byte[size];
+        byte[] g = new byte[size];
+        byte[] b = new byte[size];
+        float[] cutoffs = new float[10];
+        int trans = 0;
+        r[0] = (byte) 0;
+        g[0] = (byte) 0;
+        b[0] = (byte) 0;
+        cutoffs[0] = 0.001f;
+        r[1] = (byte) 191;
+        g[1] = (byte) 255;
+        b[1] = (byte) 233;
+        cutoffs[1] = 0.01f;
+        r[2] = (byte) 80;
+        g[2] = (byte) 210;
+        b[2] = (byte) 250;
+        cutoffs[2] = 0.1f;
+        r[3] = (byte) 221;
+        g[3] = (byte) 255;
+        b[3] = (byte) 153;
+        cutoffs[3] = 1.0f;
+        r[4] = (byte) 170;
+        g[4] = (byte) 255;
+        b[4] = (byte) 0;
+        cutoffs[4] = 2.0f;
+        r[5] = (byte) 255;
+        g[5] = (byte) 255;
+        b[5] = (byte) 112;
+        cutoffs[5] = 3.0f;
+        r[6] = (byte) 247;
+        g[6] = (byte) 227;
+        b[6] = (byte) 0;
+        cutoffs[6] = 4.0f;
+        r[7] = (byte) 230;
+        g[7] = (byte) 153;
+        b[7] = (byte) 0;
+        cutoffs[7] = 5.0f;
+        r[8] = (byte) 240;
+        g[8] = (byte) 47;
+        b[8] = (byte) 34;
+        cutoffs[8] = 6.0f;
+        r[9] = (byte) 171;
+        g[9] = (byte) 0;
+        b[9] = (byte) 0;
+        cutoffs[9] = 7.0f;
+        r[10] = (byte) 54;
+        g[10] = (byte) 37;
+        b[10] = (byte) 0;
+//        r[11] = (byte) 0;
+//        g[11] = (byte) 0;
+//        b[11] = (byte) 0;
+//        r[12] = (byte) 0;
+//        g[12] = (byte) 0;
+//        b[12] = (byte) 0;
+//        r[13] = (byte) 0;
+//        g[13] = (byte) 0;
+//        b[13] = (byte) 0;
+//        r[14] = (byte) 0;
+//        g[14] = (byte) 0;
+//        b[14] = (byte) 0;
+//        r[15] = (byte) 0;
+//        g[15] = (byte) 0;
+//        b[15] = (byte) 0;
+        int[] rgb = new int[size];
+        for (int i = 0; i < rgb.length; i++) {
+            rgb[i] = b[i] + (g[i] + (r[i]) << bits) << bits;
+        }
+        IndexColorModel cm = new IndexColorModel(bits, size, r, g, b, trans);
+        int height = distanceAxis.getShape(0);
+        int width = azimuthAxis.getShape(0);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, cm);
+        Array data = dataVariable.read();
+        Index index = data.getIndex();
+        float minV = Float.MAX_VALUE;
+        float maxV = Float.MIN_VALUE;
+        int minI = Integer.MAX_VALUE;
+        int maxI = Integer.MIN_VALUE;
+        for (int iAzimuth = 0; iAzimuth < width; iAzimuth++) {
+            for (int iDistance = 0; iDistance < height; iDistance++) {
+                float value = data.getFloat(index.set(iAzimuth, iDistance));
+                if (!Float.isNaN(value)) {
+                    int i = 0;
+                    while (i < cutoffs.length && value > cutoffs[i]) {
+                        i++;
+                    }
+                    err.format("value %s i %s\n", value, i);
+                    image.setRGB(iAzimuth, iDistance, rgb[i]);
+                    if (value > 0.0f) {
+                        if (value > maxV) {
+                            maxV = value;
+                            maxI = i;
+                        }
+                        if (value < minV) {
+                            minV = value;
+                            minI = i;
+                        }
+                    }
+                }
+            }
+        }
+        err.format("min value %s i %s\n", minV, minI);
+        err.format("max value %s i %s\n", maxV, maxI);
+        return image;
     }
 }

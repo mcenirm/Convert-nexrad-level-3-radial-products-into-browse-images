@@ -1,0 +1,50 @@
+<!doctype html>
+
+<style>
+</style>
+
+<script>
+var palette = []
+palette[    0] = [ 0,0,0,0,""]
+palette[    1] = [ 191,255,233,255,"Drizzle"]
+palette[    2] = [ 80,210,250,255,"Drizzle"]
+palette[    3] = [ 221,255,153,255,"Light"]
+palette[    4] = [ 170,255,0,255,"Light"]
+palette[    5] = [ 255,255,112,255,"Moderate"]
+palette[    6] = [ 247,227,0,255,"Moderate"]
+palette[    7] = [ 230,153,0,255,"Heavy"]
+palette[    8] = [ 240,47,34,255,"Heavy"]
+palette[    9] = [ 171,0,0,255,"Downpour"]
+palette[   10] = [ 54,37,0,255,"Downpour"]
+palette[   11] = [ 0,0,0,255,""]
+palette[   12] = [ 0,0,0,255,""]
+palette[   13] = [ 0,0,0,255,""]
+palette[   14] = [ 0,0,0,255,""]
+palette[   15] = [ 0,0,0,255,""]
+
+addEventListener('load', function() {
+var table = document.createElement('table')
+var row
+var cell
+for (var i = 0; i < palette.length; i++) {
+  row = document.createElement('tr')
+  cell = document.createElement('td')
+  cell.textContent = i
+  row.appendChild(cell)
+  cell = document.createElement('td')
+  cell.textContent = palette[i].toString()
+  row.appendChild(cell)
+  cell = document.createElement('td')
+  cell.style.backgroundColor = 'rgb(' + palette[i].slice(0,3).toString() + ')'
+  cell.style.width = '10em'
+  cell.textContent = palette[i][4]
+  if ((0.30 * palette[i][0]/255 + 0.59 * palette[i][1]/255 + 0.11 * palette[i][2]/255) < 0.5) {
+    cell.style.color = 'white'
+  }
+  row.appendChild(cell)
+  table.appendChild(row)
+}
+document.body.appendChild(table)
+})
+
+</script>
