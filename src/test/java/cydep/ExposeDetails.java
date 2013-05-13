@@ -17,7 +17,7 @@ public class ExposeDetails {
         PrintStream out = System.out;
         Formatter f = new Formatter(out);
         final String pathname = ExposeDetails.class.getClassLoader().getResource("Level3_KDVN_DPR_20130418_0408.nids").toString();
-        Cydep cydep = new Cydep(pathname, f);
+        Cydep1 cydep = new Cydep1(pathname, f);
         RadialDatasetSweep radialDatasetSweep = cydep.getRadialDatasetSweep();
         NetcdfDataset netcdfDataset = cydep.getNetcdfDataset();
         Util.dump("rds", radialDatasetSweep, f, true);

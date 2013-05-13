@@ -16,7 +16,7 @@ public class TryUnmapped {
         final String pathname = Resources.getFileResourceAsPathname(name + ".nids");
         PrintStream out = System.out;
         Formatter f = new Formatter(out);
-        Cydep cydep = new Cydep(pathname, f);
+        Cydep1 cydep = new Cydep1(pathname, f);
         File outDir = new File(cydep.getPathname()).getParentFile();
         String imageFormat = "png";
         File gridFile = new File(outDir, name + ".unmapped." + imageFormat);
