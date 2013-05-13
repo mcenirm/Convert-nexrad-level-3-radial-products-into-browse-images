@@ -17,6 +17,6 @@ public class TestCydep {
         File dir = new File(new URI(dpr)).getParentFile();
         final File file = new File(dir, NAME + ".png");
         final FileOutputStream out = new FileOutputStream(file);
-        Cydep.drawToPng(dpr, out);
+        Cydep1.drawToPng(dpr, out);
     }
 }
