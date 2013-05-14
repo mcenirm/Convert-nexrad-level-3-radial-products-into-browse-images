@@ -7,8 +7,6 @@ import org.junit.Test;
 
 public class TestConfiguration {
 
-    static final String DPRNAME = "Level3_KDVN_DPR_20130418_0408";
-
     @Test
     public void testLoadDPR() throws FileNotFoundException {
         final String configPathname = Resources.getFileResourceAsPathname("DPR.conf");

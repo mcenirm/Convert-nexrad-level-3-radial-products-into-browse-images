@@ -7,6 +7,9 @@ import java.net.URL;
  */
 public class Resources {
 
+    static final String DPRNAME = "Level3_KDVN_DPR_20130418_0408";
+    static final String DPRVARNAME = "DigitalInstantaneousPrecipitationRate";
+
     public static URL getResource(String resourceName) {
         return Resources.class.getClassLoader().getResource(resourceName);
     }
@@ -18,5 +21,9 @@ public class Resources {
         } else {
             return null;
         }
+    }
+
+    static String getDPRPathname() {
+        return getFileResourceAsPathname(DPRNAME + ".nids");
     }
 }
