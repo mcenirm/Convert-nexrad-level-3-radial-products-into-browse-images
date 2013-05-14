@@ -41,5 +41,20 @@ public class ExposeDetails {
             double sample = v[index];
             f.format("  %s %s %s\n", index, sample, calc);
         }
+        CoordinateAxis1D azimuthAxis = cydep.getAzimuthAxis();
+        Util.dump("azimuth axis", azimuthAxis, f, true);
+        double[] a = azimuthAxis.getCoordValues();
+        double minA = a[0];
+        double maxA = a[a.length - 1];
+        int numA = a.length;
+        double gapA = a[1] - a[0];
+        f.format("# azimuth %s values from %s to %s with gap %s\n", numA, minA, maxA, gapA);
+        int[] sampleAzimuthIndexes = {0, 1, 2, 9, 10, 11, numA / 2, numA - 2, numA - 1};
+        for (int i = 0; i < sampleAzimuthIndexes.length; i++) {
+            int index = sampleAzimuthIndexes[i];
+            double calc = minA + gapA * index;
+            double sample = a[index];
+            f.format("  %s %s %s\n", index, sample, calc);
+        }
     }
 }
