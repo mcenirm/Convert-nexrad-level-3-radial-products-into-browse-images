@@ -58,11 +58,12 @@ public final class Configuration {
     }
 
     int getRGB(double value) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        final Integer rgb = colormap.floorEntry(value).getValue();
+        return null == rgb ? 0 : rgb.intValue();
     }
 
     public String getDataVariableName() {
         return dataVariableName;
     }
-    
+
 }
