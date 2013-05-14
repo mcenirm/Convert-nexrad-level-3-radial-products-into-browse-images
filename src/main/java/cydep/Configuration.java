@@ -1,5 +1,6 @@
 package cydep;
 
+import java.awt.Color;
 import java.awt.image.DataBuffer;
 import java.awt.image.IndexColorModel;
 import java.io.File;
@@ -15,7 +16,7 @@ public final class Configuration {
     private final String pathname;
     private final File file;
     private final String dataVariableName;
-    private final NavigableMap<Double, Integer> colormap;
+    private final NavigableMap<Double, Color> colormap;
     static final String FORMAT =
             "DataVariableName\n"
             + "cutoff1 red1 green1 blue1\n"
@@ -27,7 +28,7 @@ public final class Configuration {
         this.file = new File(pathname);
         Scanner scanner = new Scanner(this.file);
         this.dataVariableName = scanner.nextLine();
-        this.colormap = new TreeMap<Double, Integer>();
+        this.colormap = new TreeMap<Double, Color>();
         while (scanner.hasNext()) {
             double cutoff = scanner.nextDouble();
             short red = scanner.nextShort();
@@ -36,8 +37,8 @@ public final class Configuration {
             checkUnsignedByte(green, scanner.radix());
             short blue = scanner.nextShort();
             checkUnsignedByte(blue, scanner.radix());
-            int rgb = blue + (green + (red) << Byte.SIZE) << Byte.SIZE;
-            colormap.put(cutoff, rgb);
+            Color color = new Color(red, green, blue);
+            colormap.put(cutoff, color);
         }
     }
 
@@ -50,20 +51,25 @@ public final class Configuration {
     IndexColorModel getIndexColorModel() {
         int[] cmap = new int[colormap.size() + 1];
         int i = 1;
-        for (Map.Entry<Double, Integer> entry : colormap.entrySet()) {
-            Integer rgb = entry.getValue();
+        for (Map.Entry<Double, Color> entry : colormap.entrySet()) {
+            Integer rgb = entry.getValue().getRGB();
             cmap[i++] = rgb;
         }
         return new IndexColorModel(8, cmap.length, cmap, 0, false, 0, DataBuffer.TYPE_BYTE);
     }
 
     int getRGB(double value) {
-        final Integer rgb = colormap.floorEntry(value).getValue();
-        return null == rgb ? 0 : rgb.intValue();
+        if (Double.isNaN(value)) {
+            return 0;
+        }
+        Map.Entry<Double, Color> entry = colormap.floorEntry(value);
+        if (null == entry) {
+            return 0;
+        }
+        return entry.getValue().getRGB();
     }
 
     public String getDataVariableName() {
         return dataVariableName;
     }
-
 }
