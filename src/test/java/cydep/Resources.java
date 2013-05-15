@@ -1,5 +1,6 @@
 package cydep;
 
+import java.io.File;
 import java.net.URL;
 
 /**
@@ -8,13 +9,14 @@ import java.net.URL;
 public class Resources {
 
     static final String DPRNAME = "Level3_KDVN_DPR_20130418_0408";
+    static final String DPRNIDS = DPRNAME + ".nids";
     static final String DPRVARNAME = "DigitalInstantaneousPrecipitationRate";
 
-    public static URL getResource(String resourceName) {
+    static URL getResource(String resourceName) {
         return Resources.class.getClassLoader().getResource(resourceName);
     }
 
-    public static String getFileResourceAsPathname(String resourceName) {
+    static String getFileResourceAsPathname(String resourceName) {
         final URL resourceURL = getResource(resourceName);
         if ("file".equals(resourceURL.getProtocol())) {
             return resourceURL.getPath();
@@ -24,6 +26,10 @@ public class Resources {
     }
 
     static String getDPRPathname() {
-        return getFileResourceAsPathname(DPRNAME + ".nids");
+        return getFileResourceAsPathname(DPRNIDS);
+    }
+
+    static File getResourceDirectory() {
+        return new File(getDPRPathname()).getParentFile();
     }
 }

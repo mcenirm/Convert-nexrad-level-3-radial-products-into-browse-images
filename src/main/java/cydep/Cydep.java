@@ -6,8 +6,7 @@ import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.io.IOException;
-import javax.imageio.ImageIO;
-import javax.imageio.stream.ImageOutputStream;
+import javax.imageio.ImageWriter;
 
 public final class Cydep {
 
@@ -47,8 +46,7 @@ public final class Cydep {
                 }
             }
         }
-        String formatName = output.getFormatName();
-        ImageOutputStream out = output.getImageOutputStream();
-        ImageIO.write(image, formatName, out);
+        ImageWriter writer = output.getImageWriter();
+        writer.write(image);
     }
 }
