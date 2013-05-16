@@ -21,7 +21,7 @@ public final class Cydep {
         this.config = config;
         this.input = input;
         this.output = output;
-        this.gridSize = 2 * input.getDistanceAxisLength();
+        this.gridSize = 4 * input.getDistanceAxisLength();
         this.gridGap = input.getDistanceAxisGap();
         this.affine = new AffineTransform();
         affine.scale(gridGap, -gridGap);
